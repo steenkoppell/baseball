@@ -1,0 +1,374 @@
+---
+title: "Final Report"
+subtitle: |
+  | Final Project 
+  | Data Science 1 with R (STAT 301-1)
+author: "Elsa Steen Koppell"
+pagetitle: "FR Elsa Steen Koppell"
+date: today
+
+format:
+  html:
+    toc: true
+    toc-depth: 4
+    toc-location: left
+    embed-resources: true
+    link-external-newwindow: true
+    
+
+execute:
+  warning: false
+
+from: markdown+emoji
+reference-location: margin
+citation-location: margin
+---
+
+::: {.callout-tip icon=false}
+
+## Github Repo Link
+
+[Steen Koppell: Final Project GitHub Repository](https://github.com/steenkoppell/statcast.git)
+
+:::
+
+## Introduction
+Baseball is America's pastime. While scouts once looked for confidence and pretty girlfriends^[*Moneyball* (2011) reference], advanced statistics are now the name of the game. I find the current wave of advanced metrics in sports extremely fascinating. Baseball analysis was radically changed by the introduction and proliferation of Sabermetrics, which attempts to quantify nearly every aspect of player performance. I am drawn to analytics, in and beyond baseball. This project is an opportunity to further my interest and gain practical experience.
+
+I approach this dataset with a number of initial questions. Are lefty hitters really all that?^[My brother is a left-handed baseball player. I'd like to formally disclose my existing bias against southpaws.] What makes a fastball "fast"? Can you tell a player is good by looking at his spray charts? I've witnessed a number of evaluation techniques, from David Ortiz and Alex Rodriguez arguing at the desk to advanced analytical articles on Baseball Savant to my father calling Aaron Judge a host of (appropriate?) names during his postseason slump. I look to this project for a chance to try it out myself. I've got questions and I'm on the hunt for some answers.
+
+The data are pitch-level data for 701,557 pitches thrown Major League Baseball games between April 2, 2024 and October 30, 2024. The data comes from the Baseball Savant website. I found it via the Connecticut Sports Analytics Data Challenge (CSADC), which provides the data on its website for the 2025 iteration of the challenge. Brian Macdonald, a statistics professor at Yale, the host university of the symposium the challenge is part of, uploaded the data to a OneDrive folder.
+
+Additionally, I used a list of switch hitters during the 2024 MLB season, taken from the [FANGRAPHS](https://fangraphs.com) website. I am a paying member of FANGRAPHS, which allows me to export custom .csv files from their site. I defined my search parameters and exported a csv which I then put into the /data folder of my final project directory.
+
+## Data Overview & Quality
+
+`raw_statcast_data` has 113 variables. See @tbl-datatypes for a breakdown of type. There are 701,557 observations, each of which represents a single pitch. The data for each pitch is extensive. The categorical variables deal with player information (hitters, pitchers, runners, fielders), pitch type, and outcome. The numerical variables cover the metrics: release speed, launch angle, horizontal movement, etc.
+
+![Data types, `raw_statcast_data`](data/data_types.html){width="100%" height="100%" #tbl-datatypes}
+
+The original raw data were already decently clean. Due to the sheer size of the data and the existence of numerous confounding variables, the biggest challenges were parsing through the relevant data and identifying reasonable goals for exploratory analysis.
+
+I did a large portion of the data cleaning as I went along. Because I was not initially sure exactly which explorations I wanted to pursue, I was hesitant to remove any variables that weren't almost or entirely missing. I did go through certain variables, like pitch type, and identify values that only applied to a few of the 701,557 observations. For example, 51 pitches were listed as pitch-outs, i.e. when the pitcher intentionally throws the ball away. That was not relevant to any of my analyses and as they were atypical pitches, I did not want to skew the data, so I removed them. The logical variables alluded to in @tbl-datatypes were entirely missing, so that was not a huge issue. At the bottom of the `data_cleanup.R` file, I added the code that I used to create my more targeted dataset. It is in the creation of the these datasets that the complexity of the data cleaning comes from.
+
+Within the smaller datasets, I modified existing data types and created new variables. For example, none of the categorical variables were factors, and I consciously left them as such in the main `statcast_data` dataset. However, in certain analyses, I converted variables like `pitch_type` into factors and reordered them, to suit the particular focus. In my spray charts in both main analyses, I had to modify `hc_x` and `hc_x` to fit them onto a baseball diamond. In `plate_appearance_data`, I used pivots to construct a more compact dataset with which pitching strategy could be examined more pointedly.
+
+## Exploratory Data Analysis (EDA)
+
+### Focus 1: The Platoon Advantage
+#### Background
+In baseball, it is widely accepted that batters perform better against pitchers of the opposite hand, i.e. right-handed hitters get relatively more hits against left-handed pitchers than right-handed pitchers and vice versa. Similar to the general population, right-handers are much more numerous in baseball. See @tbl-hands for the breakdown of pitchers and hitters by handedness. Left-handed hitters are at a significant advantage if popular sentiment is true. Thus they've become a prized commodity, with right-handed players learning to hit left-handed just to give themselves more of a shot.
+
+![Handedness](visualizations/hands.html){width=100% height=100% #tbl-hands}
+
+#### Evaluating the Advantage
+I want to explore the legitimacy of these claims in my dataset. First, it's clear that the platoon advantage is highly sought after by 2024 MLB players. @fig-stance represents the number of players who hit right-handed or left-handed given the handedness of the pitcher. Without the platoon split strategy, we could expect that the proportion of right- and left-handed batters should be quite similar between right- and left-handed pitchers. In fact, we see this is not the case at all.
+
+![Stance vs. handedness](visualizations/stance_by_pitcher.png){#fig-stance}
+
+Against left-handed pitchers, there is a clear majority of right-handed pitchers. But against right-handed pitchers, the balance is very split, the number of right-handed hitters is only slightly greater than the number of left-handed hitters. In fact, this phenomenon helps to explain the data in @tbl-hands. The numbers of left-handed pitchers (220) and batters (221) are almost exactly the same, but there are 261 (1.7 times) more right-handed pitchers (625) than right-handed batters (364). But by far the clearest evidence for the degree to which baseball strategists believe the platoon advantage is real is in switch hitter behavior. Switch hitters are comfortable hitting both left-handed and right-handed, meaning they can react to the handedness of the individual pitcher and change their stance based on it. There were 77 switch hitters present in the dataset. @fig-switch is identical to @fig-stance except it only contains data from those 77 switch hitters. How do they behave? 
+
+![Switch-hitter behavior](visualizations/switch_hit_splits.png){#fig-switch}
+
+With only a few exceptions, switch hitters hit in the opposite stance as the pitcher's handedness. They **chose** to do this because of the platoon advantage. Without it, this behavior makes no sense. So how strong is the advantage to provoke such a great deviation from expected behavior?
+
+There is statistical evidence to support the existence of platoon advantages, but curiously, when I compared outcomes of different pitcher/batter handedness match-ups, it wasn't clear. I assigned each observation to one of four categories, based on the combination of batter and hitter (BLPL, BLPR, BRPL, BRPR). Then, I compared their outcomes in @fig-platoon1, where you can see the proportion of pitches by the handedness splits, grouped by the outcome^[Note: I removed a few outcomes, e.g. hit-by-pitch, that were either very rare or not relevant to the research question.] of the pitch.
+
+![Platoon split effect on outcome](visualizations/platoon_proportion.png){#fig-platoon1}
+
+There doesn't seem to be the huge effect people say, at least in the 2024 data. @fig-platoon2 combines the possible splits into two categories (hands match, hands do not match). Even then, there's no clear pattern.
+
+![Split outcomes simplified](visualizations/hand_match_proportion.png){#fig-platoon2}
+
+#### Spray Charts
+
+Let's see how the spray charts of left- and right-handed hitters compare. To make these, I used a combination of `geom_baseball()` in the `sportyR` package and `geom_point()`. I plotted the location of each batted ball (using `hc_x` and `hc_y`) and adjusted the coordinates so they would fit on an image of a baseball diamond.
+
+First, I want to compare the spray charts of non-switch hitters. I used four players for this, all of whom are among the 10 players in the `statcast_data` dataset with the most plate appearances. I ascertained this using my created `plate_appearance_data` dataset. In @fig-lrspray, we see the spray charts of Gunnar Henderson, Luis Arráez, Anthony Volpe, and Marcus Semien.^["Match" encompasses BLPL and BRPR. "No match" encompasses BLPR and BRPL.]
+
+::: {.callout-note}
+To compare left- and right-handed hitters, I chose two of each:  
+Gunnar Henderson and Luis Arráez hit left-handed.  
+Anthony Volpe and Marcus Semien hit right-handed.  
+Note that all four of these players throw right-handed.
+:::
+
+::: {#fig-lrspray .callout-tip appearance="minimal"}
+
+## Spray Charts of Non-Switch Hitters
+
+::: {.panel-tabset}
+## Marcus Semien
+![Hits right, bats right.](visualizations/semien_spray.png)
+
+## Anthony Volpe
+![Hits right, bats right.](visualizations/volpe_spray.png)
+
+## Luis Arráez
+![Hits left, bats right.](visualizations/arraez_spray.png)
+
+## Gunnar Henderson
+![Hits left, bats right.](visualizations/gunnar_spray.png)
+:::
+
+:::
+
+There are multiple takeaways from these spray charts. The left-handed hitters hit many more balls into play off of right-handed pitchers, as expected. The right-handed batters require a bit more thought. They hit more balls into play off of right-handed pitchers, which seems like a violation of the principle. However, there are simply more right-handed pitchers to hit off of. What would really illustrate the phenomenon are the spray charts of batted balls that were not outs, e.g., singles, doubles, triples, and home runs. @fig-lrsafespray shows just that.
+
+::: {#fig-lrsafespray .callout-tip appearance="minimal"}
+
+## Spray Charts of Safe Hits by Non-Switch Hitters
+
+::: {.panel-tabset}
+## Marcus Semien
+![Hits right, bats right.](visualizations/semien_safe_spray.png)
+
+## Anthony Volpe
+![Hits right, bats right.](visualizations/volpe_safe_spray.png)
+
+## Luis Arráez
+![Hits left, bats right.](visualizations/arraez_safe_spray.png)
+
+## Gunnar Henderson
+![Hits left, bats right.](visualizations/gunnar_safe_spray.png)
+:::
+
+:::
+
+This makes a bit more sense. The left-handed hitters are still quite good against lefthanders. The right-handed hitters still have more hits against right-handed hitters, but as @tbl-hands explains, that's to be expected. However, the gap between performance against right- and left-handed pitchers has significantly narrowed, implying that Semien and Volpe do relatively better against lefthanders. I confirmed the results above (in @fig-lrsafespray) on [statmuse](https://statmuse.com), where you can search for individual players' statistics and apply different filters. For example, during the first half of the regular season, Marcus Semien had a batting average of 0.206 against righthanders and 0.299 against lefthanders.By the end of the season, he had narrowed the gap slightly, batting 0.228 overall against righthanders and 0.264 against lefthanders.
+
+Finally, we will look at the spray charts of switch hitters. As discovered in @fig-switch, switch hitters overwhelming (>99% of the time) opt to hit in the stance opposite the pitcher's handedness. Below (in @fig-switchspray), I examine the spray charts of four switch hitters: Elly De La Cruz, Ian Happ, Francisco Lindor, and Jurickson Profar. Unlike with non-switch hitters, there is no need to clarify whether the batter/pitcher handedness matches. Instead, the points are differentiated by pitcher (and thus batter) handedness.
+
+::: {#fig-switchspray .callout-tip appearance="minimal"}
+
+## Spray Charts of Switch Hitters
+
+::: {.panel-tabset}
+## Elly De La Cruz
+![Switch hits, throws right.](visualizations/elly_spray.png)
+
+## Ian Happ
+![Switch hits, throws right.](visualizations/happ_spray.png)
+
+## Francisco Lindor
+![Switch hits, throws right.](visualizations/lindor_spray.png)
+
+## Jurickson Profar
+![Switch hits, throws right.](visualizations/profar_spray.png)
+:::
+
+:::
+
+Notice that these spray charts look much different than those of players who only bat from one side. They seem to have greater ability to reach different parts of the field. Luis Arráez pounded balls to the left outfield; Anthony Volpe hit more to right field. All four of these switch hitters have pretty even coverage across the outfield. Sprays like Arráez and Volpe's make sense with a cursory knowledge of baseball mechanics.
+
+"Pulling" the ball refers to hitting the ball to one's own side of the field, i.e. a left-handed batter hits the ball to the left side of the field. When you don't pull the ball, you go "opposite field." Pulling the ball is much more instinctive, going opposite field requires the hitter to wait longer for the pitch. It's also easier to generate power when pull-hitting. While its noticeable in the outfield also, the infield spray is where this phenomenon becomes obvious. Each of the players has a cluster of red dots by first base and cluster of blue dots by third base (Francisco Lindor's is particularly clear). A red dot means it was hit against a left-handed pitcher, meaning the batter was standing on the left side of the plate. A hit to first base would be a pull. A blue dot at third base means the same thing, but against right-handed pitchers. The same trend was present in the non-switch hitters, but it had to be measured via density of dots, not color, since color didn't correspond to the side of the plate the batter was on.
+
+Finally, let's look at the spray charts of the same switch hitters, but only include their safe hits.
+
+::: {#fig-switchsafespray .callout-tip appearance="minimal"}
+
+## Spray Charts of Safe Hits by Switch Hitters
+
+::: {.panel-tabset}
+## Elly De La Cruz
+![Switch hits, throws right.](visualizations/elly_safe_spray.png)
+
+## Ian Happ
+![Switch hits, throws right.](visualizations/happ_safe_spray.png)
+
+## Francisco Lindor
+![Switch hits, throws right.](visualizations/lindor_safe_spray.png)
+
+## Jurickson Profar
+![Switch hits, throws right.](visualizations/profar_safe_spray.png)
+:::
+
+:::
+
+
+More insights emerge from these spray charts. First, the infield is significantly less crowded for all four of them. These were most likely ground outs or pop ups; there were also several fly outs along the first- and third-base lines. Second, though these players *can* hit from both sides of the plate, they all have better sides. Elly De La Cruz, Ian Happ, and Jurickson Profar all perform better while batting left. De La Cruz seems particularly impacted by his stance. He's not a bad hitter from the right, but when he hits left-handed, he makes greater use of the field. There are red dots throughout the outfield, whereas the blue dots congregate towards left/left-center field. He is more comfortable going opposite-field as a lefty. Happ seems stronger on the left by sheer number of hits, though he does pull quite a few of them compared to his right-handed hits. Profar is able to go opposite field much better from the left. He has more base hits up the middle when batting left as well. Francisco Lindor is a bit harder to figure out. His numbers from the left are quite good; he's got power and range. However, he has a high number of hits from the right, noteworthy because he probably has fewer opportunities to do so given @tbl-hands. I'd say he's a bit of a tossup, though he favors the right. At the beginning of the 2024 season, he was a mess on the left side of the plate.
+
+#### Final Thoughts
+
+Before I end this section, I want to emphasize just how sacrosanct the practice of platoon-ing is in baseball. From Little League, talented right-handed position players are encouraged to begin hitting left-handed to cultivate the advantage. It is why left-handed hitters are so overrepresented in the MLB, as seen in @fig-stance. There are numerous players who throw right-handed and hit either left-handed or switch. All four of the switch hitters in @fig-switchspray are natural righties, in addition to the left-handed (and right-handed) hitters in @fig-lrspray. I was only able to find one active switch hitter who is listed as throwing left-handed: Brandon Hughes, a reliever who spent the 2024 season with Diamondbacks. Hughes has not had an at-bat since 2022. Pitchers are more likely to throw left-handed and hit right-handed: Nestor Cortes, Framber Valdez, and recently retired Madison Bumgarner are all examples. It is *extremely* rare among position players: only Chas McCormick and Jake Meyers (both of the Houston Astros) throw left and hit right. In 2024, they faced 946 and 1762 pitches, respectively.
+
+Handedness is also relevant in fielding, though not because of the platoon advantage. The orientation of a baseball diamond makes it incredibly difficult for left-handed fielders to succeed in positions like second base, shortstop, and third base, where right-handed fielders can throw a ball to first without turning their entire body around. Infielders (excluding first base) have been right-handed since the nineteenth century. My younger brother, a diehard Jeter, experienced this very phenomenon when his Little League coaches steered him from shortstop to the mound and first base. Even in the 9-10 age division (and younger), handedness reigns supreme.
+
+
+### Focus 2: Pitch characteristics
+For my second focus, I want to examine the specific characteristics of pitches, namely speed, type, and location, and see how they interact, with each other and with the outcome of each pitch/plate appearance.
+
+#### Pitch Speed
+Let's first talk about pitch speed. From `baseballr::mlb_pitch_types()`, I got a list of pitch types along with their associated code. I filtered out the codes that are not present in `statcast_data` (post-tidying) and used a FANGRAPHS article to classify each pitch as either a fastball or off-speed pitch, seen in @tbl-pitchtype.
+
+![Pitch types and speeds](visualizations/pitch_types.html){width=100% height=100% #tbl-pitchtype}
+
+While there are variations between pitches in either category, particularly among off-speed pitches, I felt that making this adjustment allowed for more far-reaching exploration. I first wanted to answer the question of what it means to be off-speed. In @fig-fa, I compare the median speeds of each of the pitches.
+
+![Median speed](visualizations/fa_median_speed.png){#fig-fa}
+
+This mostly makes sense, except for one pitch, FA or "Fastball". I was initially confused by this, until I looked at the pitcher IDs for each of these FA pitches. They are the IDs of position players. I concluded that these pitches are the result of position players coming in to pitch in blowout games or other situations where it is not worth it to tire an actual pitcher's arm. Because I'm interested in the interactions of batters with actual pitchers, I filtered out these instances. With this change, the graph shows the decreased speed of off-speed pitches, no exceptions.
+
+![Median speed, no position players](visualizations/median_speed.png){#fig-medianspeed}
+ 
+Then, using the "fastball" and "offspeed" classifications outlined in @tbl-hands, I compared the distribution of `release_speed` for both fastballs and off-speed pitches in @fig-speedbytype.
+
+![Pitch speed by class](visualizations/speed_by_type.png){#fig-speedbytype}
+
+As the name suggests, fastballs are much faster than off-pseed pitches. It looks to be a difference of 10 mph (approximately) on average. Interestingly, the spread of the off-speed pitches is bigger. Perhaps this is because of the variety of off-speed pitches, which include curveballs, changeups, forkballs, slurves, etc. Off-speed pitches typically have greater movement than fastballs. That movement contributes to the reduced speed. Fastballs are less variable; they are fast. Cutters and sinkers (FC and SI, respectively) are two fastballs with movement. Cutters break ("cut") towards the pitcher's glove side and sinkers move downward ("sink"). Their movement is largely standard, unlike a curveball, which depends on release angle, grip, etc. @fig-mvmt shows the horizontal and vertical movement of fastballs and off-speed pitches.
+
+![Movement by speed class](visualizations/movement_by_type.png){#fig-mvmt}
+
+Notice that off-speed pitches tend to fall whereas fastballs drop either a bit or rise. Perhaps this is because gravity has more time to act on an off-speed pitch, or because off-speed pitches break more on average. It's interesting that there is a distinct dimple in the teal mass of off-speed pitches around the marker for zero horizontal movement, once again showing that off-speed pitches *move*.
+
+#### Plate Appearances
+Next, I want to analyze pitch type in the context of a plate appearance. To do this, I created a dataset `plate_appearance_data` using `pivot_wider()` which collects each pitch in a plate appearance into one observation. The longest plate appearance in this data was 14 pitches long. @fig-pacount shows this is not the norm. It shows the distribution of plate appearances by the number of pitches.
+
+![Pitches per plate appearance](visualizations/pa_by_pitch_count.png){#fig-pacount}
+
+When forming `plate_appearance_data`, I created variables `pitch_1`, `pitch_2`, ... `pitch_14` to track the `description` of each pitch, e.g. what happened. I also made a variation, `speed_progression` which tracks the speed ("fastball" or "offspeed"). From this data, we can look at how the previous pitch or pitches affects the next one. How do pitchers (or catchers, if they are calling the pitches) react to a ball or strike?
+
+![Pitch 1 speed](visualizations/pitch1_speed.png){#fig-pitch1speed}
+
+In @fig-pitch1speed, we see that the majority of first pitches were fastballs. Pitchers like to start out strong. However, they also appreciate an off-speed first pitch, which accounts for over one-third of the plate appearances. Perhaps more interesting: assuming there is one, what happens on the second pitch? @fig-p2byp1 attempts to answer that.
+
+![Pitch 2 by Pitch 1](visualizations/pitch2_by_pitch1_speed.png){#fig-p2byp1}
+
+If the first pitch was a fastball, it's likely (but not at all certain) that the second one will be too. Fastball-fastball was by far the most popular pitch 1-pitch 2 combination in the data. If pitch 1 was off-speed however, there's a slightly-greater-than-50% chance the second one will be off-speed as well. Psychologically, that makes some sense. A batter isn't expecting a first-pitch off-speed pitch, so once it comes, they'll assume the pitcher will try to counter with something strong. Thus, the best move is to throw another off-speed and catch them off guard.
+
+ the most common number of pitches in a plate appearance were three and four (per @fig-pacount), we may want to continue with this line of exploration. @fig-pitch321 is a similar plot that shows the speed of pitch 3 given the pitch 1-pitch 2 combination. There are four possible combinations, might they affect pitch 3?
+
+![Pitch 3 by Pitches 1 and 2](visualizations/pitch3_by_pitch12_speed.png){#fig-pitch321}
+
+Interestingly, regardless of what pitch 1 and pitch 2 were, a pitch 3 fastball is the clear choice. It's possible that the speed of the previous is largely unimportant. But if one believes, such as I do, that each plate appearance is an exercise in game theory for both the hitter and the pitcher, than maybe it is the outcome of the previous pitches that is most important. It certainly was when I was in Little League many years ago. My coaches had a rule: if you have a 3-0 count, only swing if it is a meatball right down the middle. If pitch 1 is hit into play or hits the batter, there's no need for a second pitch. But if pitch 2 is necessary, then one of four things happened on the last pitch: a ball, a swinging strike, a looking strike, or a foul ball. @tbl-pitch12 represents the proportion of second pitches that were fastballs or off-speed given one of those four outcomes. What will a pitcher throw given the batter's actions on the previous pitch.
+
+![Pitch 2 by Pitch 1 outcome](visualizations/pitch12.html){width=100% height=100% #tbl-pitch12}
+
+From @fig-p2byp1, it's no surprise that the proportion of fastballs thrown after each of the four outcomes is greater than 0.5. A ball is proper motivation for a fastball; the pitcher does not want to fall behind in the count. The other outcomes are interesting too. Perhaps the catcher/pitcher sees a foul ball as a challenge, hence the 0.580 proportion of second-pitch fastballs. Both swinging and looking strikes are following with a fastball some 53-54% of the time. An off-speed might be more appealing as a way to throw the hitter off. I'm no psychology expert.
+
+#### Speed and Batter Interaction
+We've talked about pitching strategy and the way speed affects future pitches. Now, we turn to the hitter. Newton's Third Law states that for every action, there is an opposite and equal reaction. We can apply this to hitting a baseball. In order to hit a baseball hard and fast, one must receive a pitch with enough force. Therefore, we might suspect that the speed of a pitch influences the resulting launch speed of the batted ball.
+
+In @fig-launch, we put this theory to the test. We compare four-seam fastballs (FF) with sliders (SL). These are the two most popular pitches in the dataset. Note that sliders are among the faster off-speed pitches. 
+
+![Fastballs vs. sliders](visualizations/release_launch_speed.png){#fig-launch}
+
+Surprisingly, though the slider is nearly 10 mph slower than the four-seamer (median speed), the exit velocities are nearly identical. It is important to note that there is more variation within the slider. There are a handful of sliders that achieve launch speeds over 100 mph despite the pitch's release speed being less than 70 mph. It seems our theory was incorrect. Indeed, if we look at another, even slower off-speed pitch, we find the same result. @fig-curve compares the four-seam fastball with a curveball, an off-speed breaking pitch with more movement than most others (including sliders).
+
+
+![Fastballs vs. curveballs](visualizations/fb_curve.png){#fig-curve}
+
+Curveballs are slower than sliders, allowing them to achieve more movement. And while the curveball has a noticeably lower "peak" to its mass of points, it still produces exit velocities much higher than we'd expect. Note that the line-of-best-fit for the curveball is steeper than that of the slider. The discrepancy between what we imagined the relationship would be and what it actually is could stem from the confounding variables. Spin rate, bat speed, and launch angle are all said to influence launch speed, so its unlikely that we could see as clear a relationship between release speed and launch speed as we'd initially suspected. 
+
+Curiously, I calculated the correlations of several potential confounding variables with `launch_speed` and themselves. Then, I used `corrplot()` to make the results easy to interpret in @fig-corr. The results were interesting: bat speed had a moderate-to-low strength positive correlation with launch speed, but all of the other confounding variables had little to no correlation.
+
+![Launch speed correlations](visualizations/correlations.png){#fig-corr}
+
+::: {.callout-note}
+Bat speed is also included in `statcast_data`. Immediately below this note, I'll visually examine its relationship with launch speed. Before that, some information on missingness in `launch_speed` and `bat_speed`. See @tbl-speed-na for a complete description of the missingness for bat/launch speeds for the 672,836 pitches in `statcast_data`. 
+
+![Missingness of `bat_speed` and `launch_speed`](data/speed_na.html){width="100%" height="100%" #tbl-speed-na}
+:::
+
+Let's quickly look at how the relationship between bat speed and release speed differ for fastballs and different off-speed pitches, curveballs and sliders. For comparison, I will include @fig-launch and @fig-curve beside their respective counterparts.
+
+:::{.panel-tabset}
+
+## Fastballs and Sliders
+
+::: {layout-ncol=2}
+![Bat speed](visualizations/fb_slide_bat.png)
+
+![Launch speed](visualizations/release_launch_speed.png)
+:::
+
+## Fastballs and Curveballs
+
+::: {layout-ncol=2}
+![Bat speed](visualizations/fb_curve_bat.png)
+
+![Launch speed](visualizations/fb_curve.png)
+:::
+:::
+
+The most notable difference in using `bat_speed` instead of `launch_speed` is found in the fastball vs. curveball graphs, where the linear regression line for curveballs has negative slope with bat speed and positive slope with launch speed. For curveballs, an increase in release speed leads to a decrease in bat speed. Quick bat speed is advantageous against pitchers with good off-speed pitches as it allows the hitter more time to react. Perhaps this observation in the graph can be attributed to the speed at which players react to seeing a curveball. When it's a slower curveball, they may want to wait on the pitch and gauge its movement, necessitating a quick swing to ensure good contact. Another observation that's true for both the fastball/slider and fastball/curveball graphs: the `bat_speed` reaction to `release_speed` has a more "mushroom cloud-like" appearance than the `launch_speed` ones. Perhaps because bat speed is more constant for any given hitter than release speed? More analysis would be required to figure this one out.
+
+#### Spray Charts
+The above analysis examines the influence of a pitch's speed on the pitch's outcome, but I have not yet included "physical location" in my definition of outcome. Thus, I return to spray charts. How does the speed of a pitch influence where it ends up? For this analysis, I use four players to examine how pitch speed and hit location interact. The players are Shohei Ohtani (bats left), Brice Turang (bats left), Aaron Judge (bats right), and Bobby Witt Jr. (bats right). 
+
+Their four spray charts, found in @fig-speedsprays, contain the location of every batted ball, with color representing the speed class of the pitch (off-speed or fastball). I created a function similar to one I used for the platoon spray charts to produce these charts.
+
+::: {#fig-speedsprays .callout-tip appearance="minimal"}
+
+## Spray Charts by Speed Class
+
+::: {.panel-tabset}
+## Shohei Ohtani
+![Right-handed power hitter, can hit for contact.](visualizations/ohtani_speed_spray.png)
+
+## Brice Turang
+![Left-handed contact hitter.](visualizations/turang_speed_spray.png)
+
+## Aaron Judge
+![Right-handed power hitter.](visualizations/judge_speed_spray.png)
+
+## Bobby Witt Jr.
+![Right-handed hitter, strong in contact and power-hitting.](visualizations/witt_speed_spray.png)
+:::
+
+:::
+
+Each of these four hitters is unique. I made sure to pick a mixture of right- and left-handed hitters, yes, but their hitting styles differ too. Aaron Judge is a power hitter, hence the void of hits to the shallow outfield. Shohei Ohtani is a power hitter who can hit for contact. Brice Turang is a small-ball player, often leading off the Brewers lineup when facing a righthander. His infield spray is the most dense and varied. Bobby Witt Jr. is a bit of everything. He's quick and good at contact-hitting (he bat 0.303 during the period of time this dataset covers), but he can also hit for power. His spray reflects all of this nicely.
+
+Pitch speed is the variable in question here. How does it interact with each hitter's style? Ohtani bats left. Notice that the majority of his hits to right field were on off-speed pitches. Remember that he needs to wait on the pitch to take it opposite field. An off-speed pitch arrives to the plate later, giving him more time to wait. The same phenomenon can be observed in the other players' spray charts. Turang's hits off fastballs are concentrated towards the right of the field, when he's pulling the ball. Judge is the opposite. He pulls the fastballs much more than he does the off-speed pitches but because he hits right-handed, his fastballs are concentrated on the left side of the field. Witt Jr.'s spray is very interesting. He has a good balance of off-speed and fastball pitches across the outfield, except in deep right field. With the exception of a single home run, deep right field is a sea of blue. Consider his foul balls. There's a group of four of them, all fastballs, along the basepath to first. These are, presumably, foul balls that he barely nicked with the edge of his bat. Ohtani has something similar on the left side of the field, but they are all offspeed pitches. Perhaps they are curveballs that he chased or other breaking pitches he couldn't quite take to opposite field.
+
+::: {#fig-safespeedsprays .callout-tip appearance="minimal"}
+
+## Spray Charts by Speed Class, Safe Hits Only
+
+::: {.panel-tabset}
+## Shohei Ohtani
+![Right-handed power hitter, can hit for contact.](visualizations/ohtani_safe_speed_spray.png)
+
+## Brice Turang
+![Left-handed contact hitter.](visualizations/turang_safe_speed_spray.png)
+
+## Aaron Judge
+![Right-handed power hitter.](visualizations/judge_safe_speed_spray.png)
+
+## Bobby Witt Jr.
+![Right-handed hitter, strong in contact and power-hitting.](visualizations/witt_safe_speed_spray.png)
+:::
+
+:::
+
+Drawing conclusions from the differences between @fig-speedsprays and @fig-safespeedsprays is tricky, because, as we discovered in our first focus on the platoon advantage, lots of factors influence a batted ball's "safe-ness". Nevertheless, we may make certain observations and speculate as to why they exist. The majority of Ohtani's base hits off of fastballs were to the right side of the field (for him, pulling the ball). Judge's spray chart looks like a mirror image of Ohtani's, though Judge's hits of off-speeds are more concentrated on the left side of the field (when *he* is pulling the ball). Ohtani is more a contact hitter than Judge, so this is to be expected. Witt Jr.'s safe spray chart is surprising if only because it looks like almost all of his hits of off-speed pitches that made it out of the infield were base hits. It indicates good discipline and an ability to direct his hits. Turang's is expected but interesting as well. He rarely goes deep, and his safe spray charts are littered with infield singles, off both fastballs and off-speed pitches. His spray chart is probably the most or second-most balanced of the four, indicating his ambivalence to pitch speed. This aligns with his contact hitter skills, his goal is making solid contact regardless of pitch type. He's not trying to hit a blast every at bat like Judge.
+
+## Conclusions
+Returning to my questions from the introduction, we now have some answers.
+
+::: {.callout-note appearance="simple"}
+This conclusions section is notably sparse. I felt it was more useful to embed the conclusions within the report than try to pack everything into a final section without graphics. Please view these conclusions as brief summaries of and thoughts on the investigations/results.
+:::
+
+First, on platoon advantage analysis. After @fig-platoon1 and @fig-platoon2, I was expecting the exploration to continue undermining previous assumptions that the platoon advantage is both real and significant. The spray chart analysis proved otherwise. What I found most interesting was that the platoon advantage was only clearly visible once I filtered out batted balls that resulted in outs. I had been operating under the assumption that a platoon advantage was only useful for making contact. However, it seriously contributes to the power and positioning of a hitter, as evidenced by explanation of pulling and taking a pitch opposite field. Also a revelation: one would expect switch hitters, who always have the platoon advantage, to be much better than everyone else. In fact, that was not the case. The switch hitters were good, but the one-sided hitters were quite capable of delivering. Admittedly, the players I chose for this are all high profile, in part because they are good, so perhaps there's a clearer advantage to switch-hitting within a lower tier of play.
+
+Second, on pitch characteristics. I was most surprised by the revelation that release speed *and* spin rate had such a small/no effect on launch speed. That seemed like a no-brainer beforehand so to be proven entirely incorrect was shocking. From the spray charts, we learned that because of baseball swing mechanics, it is easier and more common to hit home runs opposite field off of off-speed pitches. Having more time to swing is a game changer. The analysis of speed of the first pitch, second pitch, and third pitch as well as their interactions was interesting. It's interesting how the proportion of third fastballs after two fastballs was greater than the proportion of second fastballs after one of them.
+
+The overall results were not overly shocking. As an avid baseball fan, I have seen my fair share of statistics mappings. But I was surprised by how much good be derived from something like a spray chart. It was fascinating to pick apart each cluster of batted balls and try to figure out why it was there.
+
+## References
+Macdonald, B. (2024).*Baseball Savant pitch-level data for Major League Baseball (April 2, 2024 - October 30, 2024)* [Data set]. Connecticut Sports Analytics Symposium. [https://statds.org/events/csas2025/challenge.html.](https://statds.org/events/csas2025/challenge.html)
+
+*MLB switch hitters (April 2, 2024 - October 30, 2024)* [Data set]. FANGRAPHS. [https://www.fangraphs.com/leaders/major-league?stats=bat&lg=all&qual=0&season=2023&
+season1=2023&ind=0&rost=0&filter=&players=0&type=8&hand=S&team=0&startdate=2024-04-02
+&enddate=2024-08-30&month=1000&pos=all&pagenum=1&pageitems=100.](https://www.fangraphs.com/leaders/major-league?stats=bat&lg=all&qual=0&season=2023&
+season1=2023&ind=0&rost=0&filter=&players=0&type=8&hand=S&team=0&startdate=2024-04-02
+&enddate=2024-08-30&month=1000&pos=all&pagenum=1&pageitems=100)
+
+Slowinski, P. (2012, April 4). *Pitch type abbreviations & classifications*. FANGRAPHS. [https://library.fangraphs.com/pitch-type-abbreviations-classifications/.](https://library.fangraphs.com/pitch-type-abbreviations-classifications/)
+
+*Marcus Semien vs. left-handed pitchers in April 2 through October 30 2024*. statmuse.
+[https://www.statmuse.com/mlb/ask/marcus-semien-vs-left-handed-pitchers-in-april-2
+-through-october-30-2024.](https://www.statmuse.com/mlb/ask/marcus-semien-vs-left-handed-pitchers-in-april-2
+-through-october-30-2024.)
