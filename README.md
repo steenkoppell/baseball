@@ -14,11 +14,11 @@ This project began as a final project for STAT 301-1 at Northwestern. We were as
     | `2_platoon_analysis.R` | Code for EDA on platoon advantage, create and save visualizations. |
     | `3_pitch_type_analysis.R` | Code for EDA on pitch characteristics, create and save visualizations. |
 
-    -   Note that `2_platoon_analysis.R` and `3_pitch_type_analysis.R` are numbered arbitrarily. They need not be run in that order. Each loads `.rds` files created in `1_data_cleanup.R`.
+    -   Note that `2_platoon_analysis.R` and `3_pitch_type_analysis.R` are numbered arbitrarily. They need not be run in that order. Each loads `.rda` files created in `1_data_cleanup.R`.
 
 -   `Final_Report.qmd` and `Executive_Summary.qmd`. Names are self-explanatory.
 
--   Folders for further organization.
+-   Folders for further organization. See the `README.md` in each folder for more information.
 
     | Folder name      | Purpose                                                  |
     |--------------------|----------------------------------------------------|
